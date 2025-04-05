@@ -1,0 +1,63 @@
+---
+- name: webserver with UFW
+  hosts: web
+  become: yes
+  vars_files:
+    - vars.yml
+
+  tasks:
+
+    - name: Update apt and cccahe
+      apt:
+        update_cache: yes
+        upgrade: dist
+      register: upgrade_result
+
+    - name: Install required packages
+      apt:
+        name: "{{ packages }}"
+        state: present
+      notify: restart nginx
+
+    - name: Ensure UFW is installed
+      apt:
+        name: ufw
+        state: present
+
+    - name: Reset UFW to default state
+      ufw:
+        state: reset
+
+    - name: Set default UFW policies
+      ufw:
+        direction: incoming
+        policy: deny
+
+    - name: Allow outgoing by default
+      ufw:
+        direction: outgoing
+        policy: allow
+
+    - name: Allow required ports
+      ufw:
+        rule: allow
+        port: "{{ item.port }}"
+        proto: "{{ item.proto }}"
+      loop: "{{ ufw_allowed_ports }}"
+      notify: reload ufw
+
+    - name: UFW IS enabled?
+      ufw:
+        state: enabled
+        enabled: yes
+
+  handlers:
+    - name: restart nginx
+      service:
+        name: nginx
+        state: restarted
+      listen: restart nginx
+
+    - name: reload ufw
+      command: ufw reload
+      listen: reload ufw
